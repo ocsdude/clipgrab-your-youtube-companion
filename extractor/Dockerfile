@@ -38,4 +38,4 @@ USER app
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT} --workers 1"]
+CMD ["sh", "-c", "node /app/bgutil/server/build/main.js --port 4416 & uvicorn app:app --host 0.0.0.0 --port ${PORT} --workers 1"]
