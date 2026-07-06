@@ -36,7 +36,12 @@ if not TOKEN:
 
 YDL_ANTIBOT_OPTS: dict[str, Any] = {
     "extractor_args": {
-        "youtube": {"player_client": ["ios", "tv", "web_safari", "web"]},
+        # Avoid TV clients: YouTube currently bot-gates them on many server IPs,
+        # and one LOGIN_REQUIRED TV response can make the whole extraction fail.
+        "youtube": {
+            "player_client": ["ios", "mweb", "web_embedded", "web_safari"],
+            "fetch_pot": ["auto"],
+        },
         "youtubepot-bgutilscript": {"server_home": ["/app/bgutil/server"]},
     },
 }
