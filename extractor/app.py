@@ -36,10 +36,8 @@ if not TOKEN:
 
 YDL_ANTIBOT_OPTS: dict[str, Any] = {
     "extractor_args": {
-        "youtube": {
-            "player_client": ["ios", "tv", "web_safari", "web"],
-            "getpot_bgutil_script": ["/app/generate_once.js"],
-        }
+        "youtube": {"player_client": ["ios", "tv", "web_safari", "web"]},
+        "youtubepot-bgutilscript": {"server_home": ["/app/bgutil/server"]},
     },
 }
 
