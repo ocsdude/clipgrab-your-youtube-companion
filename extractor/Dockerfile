@@ -1,9 +1,11 @@
-# ClipGrab extractor — yt-dlp + ffmpeg behind a small FastAPI service.
+# ClipGrab extractor — yt-dlp + ffmpeg + bgutil PO-token provider.
 FROM python:3.12-slim
 
-# ffmpeg is required for merging video+audio streams (needed for 1080p+ / 4K).
+# ffmpeg for muxing; nodejs for the bgutil PO-token script provider.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl gnupg \
+ && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,17 +15,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Install the bgutil PO-token provider (script mode — no sidecar needed).
+RUN mkdir -p /app/bgutil \
+ && curl -fsSL https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/generate_once.js \
+      -o /app/bgutil/generate_once.js \
+ && chmod +x /app/bgutil/generate_once.js
+
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt \
+ && pip install -U --pre "yt-dlp[default]" \
+ && pip install bgutil-ytdlp-pot-provider
 
 COPY app.py .
 
-# Run as non-root
 RUN useradd -m -u 10001 app && chown -R app /app
 USER app
 
 EXPOSE 8080
 
-# Single worker keeps per-IP rate-limit state consistent. Scale horizontally
-# by putting a real limiter (or your host's) in front if you need more.
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT} --workers 1"]
