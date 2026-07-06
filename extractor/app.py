@@ -266,10 +266,22 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
     }
 
     try:
-        info, clients = extract_with_fallbacks(url, ydl_opts, download=True)
-        with YoutubeDL({**ydl_opts, **ydl_antibot_opts(clients)}) as ydl:
-            info = ydl.extract_info(url, download=True)
-            path = Path(ydl.prepare_filename(info)).with_suffix(f".{ext_hint}")
+        last_error: DownloadError | None = None
+        for clients in YOUTUBE_CLIENT_FALLBACKS:
+            try:
+                with YoutubeDL({**ydl_opts, **ydl_antibot_opts(clients)}) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    path = Path(ydl.prepare_filename(info)).with_suffix(f".{ext_hint}")
+                break
+            except DownloadError as e:
+                last_error = e
+                continue
+        else:
+            if last_error:
+                raise last_error
+            raise HTTPException(502, "extraction_failed")
+
+        if True:
             if not path.exists():
                 candidates = list(tmpdir.iterdir())
                 if not candidates:
