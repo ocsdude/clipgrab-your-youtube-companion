@@ -1,0 +1,16 @@
+# Render.com blueprint for the ClipGrab extractor.
+# Create a new "Blueprint" service in Render and point it at this repo folder.
+# After first deploy, set EXTRACTOR_TOKEN in the service's Environment tab.
+services:
+  - type: web
+    name: clipgrab-extractor
+    runtime: docker
+    plan: starter          # 512MB is tight for 4K muxing; bump to standard if you need it
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: EXTRACTOR_TOKEN
+        sync: false        # set manually in the dashboard
+      - key: PORT
+        value: 8080
