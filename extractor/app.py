@@ -34,12 +34,11 @@ TOKEN = os.environ.get("EXTRACTOR_TOKEN", "").strip()
 if not TOKEN:
     raise RuntimeError("EXTRACTOR_TOKEN env var is required")
 
-# --- Anti-bot / PO-token options shared by /info and /download --------------
 YDL_ANTIBOT_OPTS: dict[str, Any] = {
     "extractor_args": {
         "youtube": {
             "player_client": ["ios", "tv", "web_safari", "web"],
-            "getpot_bgutil_script": ["/app/bgutil/generate_once.js"],
+            "getpot_bgutil_script": ["/app/generate_once.js"],
         }
     },
 }
