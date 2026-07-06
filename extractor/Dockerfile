@@ -16,15 +16,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install the bgutil PO-token provider (script mode — no sidecar needed).
-RUN mkdir -p /app/bgutil \
- && curl -fsSL https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/generate_once.js \
-      -o /app/bgutil/generate_once.js \
- && chmod +x /app/bgutil/generate_once.js
+# The generate_once.js script ships inside the npm package.
+RUN npm install -g bgutil-ytdlp-pot-provider \
+ && BGUTIL_DIR="$(npm root -g)/bgutil-ytdlp-pot-provider" \
+ && cp "$BGUTIL_DIR/server/build/generate_once.js" /app/generate_once.js \
+ && chmod +x /app/generate_once.js
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt \
- && pip install -U --pre "yt-dlp[default]" \
- && pip install bgutil-ytdlp-pot-provider
+ && pip install -U --pre "yt-dlp[default]"
 
 COPY app.py .
 
