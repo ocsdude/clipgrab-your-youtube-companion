@@ -281,12 +281,11 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
                 raise last_error
             raise HTTPException(502, "extraction_failed")
 
-        if True:
-            if not path.exists():
-                candidates = list(tmpdir.iterdir())
-                if not candidates:
-                    raise HTTPException(502, "extraction_failed")
-                path = candidates[0]
+        if not path.exists():
+            candidates = list(tmpdir.iterdir())
+            if not candidates:
+                raise HTTPException(502, "extraction_failed")
+            path = candidates[0]
     except HTTPException:
         cleanup()
         raise
