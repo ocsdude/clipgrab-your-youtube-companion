@@ -34,6 +34,16 @@ TOKEN = os.environ.get("EXTRACTOR_TOKEN", "").strip()
 if not TOKEN:
     raise RuntimeError("EXTRACTOR_TOKEN env var is required")
 
+# --- Anti-bot / PO-token options shared by /info and /download --------------
+YDL_ANTIBOT_OPTS: dict[str, Any] = {
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["ios", "tv", "web_safari", "web"],
+            "getpot_bgutil_script": ["/app/bgutil/generate_once.js"],
+        }
+    },
+}
+
 # --- URL sanitization -------------------------------------------------------
 YT_RE = re.compile(
     r"^https?://(?:www\.|m\.)?"
@@ -107,13 +117,24 @@ def health() -> dict[str, bool]:
     return {"ok": True}
 
 
+@app.get("/version")
+def version() -> dict[str, str]:
+    import yt_dlp
+    return {"yt_dlp": yt_dlp.version.__version__}
+
+
 @app.post("/info")
 def info(body: InfoBody, request: Request, authorization: str | None = Header(None)) -> JSONResponse:
     check_auth(authorization)
     check_rate(request.client.host if request.client else "unknown")
     url = canonical_url(body.url)
 
-    ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+    ydl_opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        **YDL_ANTIBOT_OPTS,
+    }
     try:
         with YoutubeDL(ydl_opts) as ydl:
             data: dict[str, Any] = ydl.extract_info(url, download=False)
@@ -121,7 +142,6 @@ def info(body: InfoBody, request: Request, authorization: str | None = Header(No
         code, key = _friendly_error(e)
         raise HTTPException(code, key)
 
-    # Available heights (best video-only or progressive stream present)
     heights = {
         f.get("height")
         for f in data.get("formats") or []
@@ -133,7 +153,6 @@ def info(body: InfoBody, request: Request, authorization: str | None = Header(No
             available.append(q)
     available.append("audio")
 
-    # Rough size estimate: pick best audio + best video ≤ height
     def estimate(quality: str) -> int | None:
         formats = data.get("formats") or []
         if quality == "audio":
@@ -198,14 +217,13 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
         mime = "audio/mp4"
     else:
         h = QUALITY_HEIGHT[body.quality]
-        # Prefer mp4/m4a for a clean mux; fall back to best.
         fmt = f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]"
         outtmpl = str(tmpdir / "%(title).100s.%(ext)s")
         postprocessors = [{"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"}]
         ext_hint = "mp4"
         mime = "video/mp4"
 
-    ydl_opts = {
+    ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "format": fmt,
@@ -213,6 +231,7 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
         "merge_output_format": "mp4" if body.quality != "audio" else None,
         "postprocessors": postprocessors,
         "noplaylist": True,
+        **YDL_ANTIBOT_OPTS,
     }
 
     try:
@@ -220,7 +239,6 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
             info = ydl.extract_info(url, download=True)
             path = Path(ydl.prepare_filename(info)).with_suffix(f".{ext_hint}")
             if not path.exists():
-                # Fall back to whatever landed on disk
                 candidates = list(tmpdir.iterdir())
                 if not candidates:
                     raise HTTPException(502, "extraction_failed")
