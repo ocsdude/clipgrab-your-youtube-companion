@@ -1,9 +1,9 @@
 # ClipGrab extractor — yt-dlp + ffmpeg + bgutil PO-token provider.
 FROM python:3.12-slim
 
-# ffmpeg for muxing; nodejs for the bgutil PO-token script provider.
+# ffmpeg for muxing; nodejs + git to build the bgutil PO-token script provider.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl gnupg \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl gnupg git \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
@@ -11,20 +11,25 @@ RUN apt-get update \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PORT=8080
+    PORT=8080 \
+    BGUTIL_VERSION=1.3.1
 
 WORKDIR /app
 
-# Install the bgutil PO-token provider (script mode — no sidecar needed).
-# The generate_once.js script ships inside the npm package.
-RUN npm install -g bgutil-ytdlp-pot-provider \
- && BGUTIL_DIR="$(npm root -g)/bgutil-ytdlp-pot-provider" \
- && cp "$BGUTIL_DIR/server/build/generate_once.js" /app/generate_once.js \
- && chmod +x /app/generate_once.js
+# Build the bgutil PO-token generation script (option "b" from upstream README).
+RUN git clone --depth 1 --single-branch --branch ${BGUTIL_VERSION} \
+      https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /tmp/bgutil \
+ && cd /tmp/bgutil/server \
+ && npm ci \
+ && npx tsc \
+ && mkdir -p /app/bgutil \
+ && cp -r /tmp/bgutil/server /app/bgutil/server \
+ && rm -rf /tmp/bgutil
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt \
- && pip install -U --pre "yt-dlp[default]"
+ && pip install -U --pre "yt-dlp[default]" \
+ && pip install "bgutil-ytdlp-pot-provider"
 
 COPY app.py .
 
