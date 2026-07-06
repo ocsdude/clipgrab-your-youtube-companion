@@ -77,14 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "ClipGrab — Minimal YouTube Downloader" },
+      { name: "description", content: "Paste a YouTube link and download it in up to 4K or audio-only. Fast, minimal, no ads." },
+      { name: "author", content: "ClipGrab" },
+      { property: "og:title", content: "ClipGrab — Minimal YouTube Downloader" },
+      { property: "og:description", content: "Paste a link, pick a quality, download. Nothing else." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
