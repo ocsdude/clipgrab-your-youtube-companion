@@ -32,7 +32,7 @@ type VideoInfo = {
   id: string;
   title: string;
   channel: string;
-  duration: number;
+  duration: number | null;
   thumbnail: string;
   formats: Format[];
 };
@@ -76,7 +76,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   private_video: "This video is private.",
   age_restricted: "This video is age-restricted.",
   video_unavailable: "This video is unavailable or has been removed.",
-  sign_in_required: "YouTube requires a sign-in to fetch this video.",
+  sign_in_required: "YouTube blocked the extractor host.",
+  extractor_ip_blocked: "YouTube blocked the extractor host. Try another host or proxy.",
   rate_limited: "Too many requests — slow down for a minute.",
   extraction_failed: "Couldn't extract this video.",
   network_error: "Network error — is the extractor reachable?",

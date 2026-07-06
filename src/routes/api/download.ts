@@ -71,6 +71,7 @@ export const Route = createFileRoute("/api/download")({
           try {
             key = (JSON.parse(text) as { detail?: string }).detail ?? key;
           } catch {}
+          if (key === "sign_in_required") key = "extractor_ip_blocked";
           return Response.json({ error: key }, { status: upstream.status });
         }
 
