@@ -34,6 +34,10 @@ TOKEN = os.environ.get("EXTRACTOR_TOKEN", "").strip()
 if not TOKEN:
     raise RuntimeError("EXTRACTOR_TOKEN env var is required")
 
+YTDLP_PROXY = os.environ.get("YTDLP_PROXY", "").strip()
+YOUTUBE_COOKIES = os.environ.get("YOUTUBE_COOKIES", "").strip()
+COOKIE_FILE = Path(tempfile.gettempdir()) / "youtube_cookies.txt"
+
 YOUTUBE_CLIENT_FALLBACKS: list[list[str]] = [
     ["ios"],
     ["mweb"],
@@ -45,7 +49,7 @@ YOUTUBE_CLIENT_FALLBACKS: list[list[str]] = [
 
 
 def ydl_antibot_opts(player_clients: list[str]) -> dict[str, Any]:
-    return {
+    opts: dict[str, Any] = {
         "extractor_args": {
             # Do not include TV clients here. On many hosted/server IPs YouTube
             # returns LOGIN_REQUIRED for TV, and one bad client can poison the
@@ -58,6 +62,12 @@ def ydl_antibot_opts(player_clients: list[str]) -> dict[str, Any]:
             "youtubepot-bgutilscript": {"server_home": ["/app/bgutil/server"]},
         },
     }
+    if YTDLP_PROXY:
+        opts["proxy"] = YTDLP_PROXY
+    if YOUTUBE_COOKIES:
+        COOKIE_FILE.write_text(YOUTUBE_COOKIES, encoding="utf-8")
+        opts["cookiefile"] = str(COOKIE_FILE)
+    return opts
 
 
 def extract_with_fallbacks(url: str, base_opts: dict[str, Any], *, download: bool) -> tuple[dict[str, Any], list[str]]:

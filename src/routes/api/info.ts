@@ -3,6 +3,10 @@ import { z } from "zod";
 import { canonicalYouTubeUrl } from "@/lib/youtube";
 
 const Body = z.object({ url: z.string().min(5).max(500) });
+const FALLBACK_FORMATS = [
+  { quality: "720p", hasAudio: true, sizeEstimate: null },
+  { quality: "audio", hasAudio: true, sizeEstimate: null },
+];
 
 // Best-effort in-memory per-IP rate limit. Workers are stateless across
 // isolates so this only catches bursts within a single instance.
@@ -20,6 +24,42 @@ function rateLimited(ip: string): boolean {
   arr.push(now);
   HITS.set(ip, arr);
   return false;
+}
+
+async function fallbackInfo(url: string) {
+  const id = new URL(url).searchParams.get("v") ?? "video";
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+      { headers: { accept: "application/json" } },
+    );
+    if (res.ok) {
+      const data = (await res.json()) as {
+        title?: string;
+        author_name?: string;
+        thumbnail_url?: string;
+      };
+      return Response.json({
+        id,
+        title: data.title ?? "YouTube video",
+        channel: data.author_name ?? "YouTube",
+        duration: null,
+        thumbnail: data.thumbnail_url ?? `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+        formats: FALLBACK_FORMATS,
+        limited: true,
+      });
+    }
+  } catch {}
+
+  return Response.json({
+    id,
+    title: "YouTube video",
+    channel: "YouTube",
+    duration: null,
+    thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    formats: FALLBACK_FORMATS,
+    limited: true,
+  });
 }
 
 export const Route = createFileRoute("/api/info")({
@@ -65,6 +105,7 @@ export const Route = createFileRoute("/api/info")({
             try {
               key = (JSON.parse(text) as { detail?: string }).detail ?? key;
             } catch {}
+            if (key === "sign_in_required") return fallbackInfo(url);
             return Response.json({ error: key }, { status: res.status });
           }
           return new Response(text, {
