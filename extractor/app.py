@@ -34,17 +34,49 @@ TOKEN = os.environ.get("EXTRACTOR_TOKEN", "").strip()
 if not TOKEN:
     raise RuntimeError("EXTRACTOR_TOKEN env var is required")
 
-YDL_ANTIBOT_OPTS: dict[str, Any] = {
-    "extractor_args": {
-        # Avoid TV clients: YouTube currently bot-gates them on many server IPs,
-        # and one LOGIN_REQUIRED TV response can make the whole extraction fail.
-        "youtube": {
-            "player_client": ["ios", "mweb", "web_embedded", "web_safari"],
-            "fetch_pot": ["auto"],
+YOUTUBE_CLIENT_FALLBACKS: list[list[str]] = [
+    ["ios"],
+    ["mweb"],
+    ["web_embedded"],
+    ["web_safari"],
+    ["default"],
+    ["android"],
+]
+
+
+def ydl_antibot_opts(player_clients: list[str]) -> dict[str, Any]:
+    return {
+        "extractor_args": {
+            # Do not include TV clients here. On many hosted/server IPs YouTube
+            # returns LOGIN_REQUIRED for TV, and one bad client can poison the
+            # whole extraction. We try safer clients one-by-one instead.
+            "youtube": {
+                "player_client": player_clients,
+                "fetch_pot": ["auto"],
+            },
+            "youtubepot-bgutilhttp": {"base_url": ["http://127.0.0.1:4416"]},
+            "youtubepot-bgutilscript": {"server_home": ["/app/bgutil/server"]},
         },
-        "youtubepot-bgutilscript": {"server_home": ["/app/bgutil/server"]},
-    },
-}
+    }
+
+
+def extract_with_fallbacks(url: str, base_opts: dict[str, Any], *, download: bool) -> tuple[dict[str, Any], list[str]]:
+    last_error: DownloadError | None = None
+    for clients in YOUTUBE_CLIENT_FALLBACKS:
+        ydl_opts = {
+            **base_opts,
+            **ydl_antibot_opts(clients),
+        }
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                data: dict[str, Any] = ydl.extract_info(url, download=download)
+                return data, clients
+        except DownloadError as e:
+            last_error = e
+            continue
+    if last_error:
+        raise last_error
+    raise HTTPException(502, "extraction_failed")
 
 # --- URL sanitization -------------------------------------------------------
 YT_RE = re.compile(
@@ -135,11 +167,9 @@ def info(body: InfoBody, request: Request, authorization: str | None = Header(No
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        **YDL_ANTIBOT_OPTS,
     }
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            data: dict[str, Any] = ydl.extract_info(url, download=False)
+        data, _clients = extract_with_fallbacks(url, ydl_opts, download=False)
     except DownloadError as e:
         code, key = _friendly_error(e)
         raise HTTPException(code, key)
@@ -233,11 +263,11 @@ def download(body: DownloadBody, request: Request, authorization: str | None = H
         "merge_output_format": "mp4" if body.quality != "audio" else None,
         "postprocessors": postprocessors,
         "noplaylist": True,
-        **YDL_ANTIBOT_OPTS,
     }
 
     try:
-        with YoutubeDL(ydl_opts) as ydl:
+        info, clients = extract_with_fallbacks(url, ydl_opts, download=True)
+        with YoutubeDL({**ydl_opts, **ydl_antibot_opts(clients)}) as ydl:
             info = ydl.extract_info(url, download=True)
             path = Path(ydl.prepare_filename(info)).with_suffix(f".{ext_hint}")
             if not path.exists():
